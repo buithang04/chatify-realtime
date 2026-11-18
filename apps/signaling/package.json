@@ -1,0 +1,22 @@
+{
+  "name": "chatify-realtime-signaling",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test dist/protocol.test.js dist/gateway.test.js dist/events.test.js dist/signal-state.test.js"
+  },
+  "dependencies": {
+    "@socket.io/redis-adapter": "8.3.0",
+    "jsonwebtoken": "9.0.2",
+    "kafkajs": "2.2.4",
+    "redis": "4.7.0",
+    "socket.io": "4.8.1"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "9.0.7",
+    "@types/node": "22.10.2",
+    "socket.io-client": "4.8.1",
+    "typescript": "5.7.2"
+  }
+}
