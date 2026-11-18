@@ -1,0 +1,91 @@
+name: Chatify Realtime CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: API quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build test image
+        run: docker build --target build -t chatify-api-ci -f apps/api/Dockerfile .
+      - name: Go tests and vet
+        run: docker run --rm --entrypoint /bin/sh chatify-api-ci -c 'cd /src/apps/api && go test ./... && go vet ./...'
+
+  signaling:
+    name: Signaling quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build test image
+        run: docker build --target build -t chatify-signaling-ci -f apps/signaling/Dockerfile .
+      - name: Tests
+        run: docker run --rm --entrypoint npm chatify-signaling-ci test
+      - name: Dependency audit
+        run: docker run --rm --entrypoint npm chatify-signaling-ci audit --omit=dev --audit-level=high
+
+  media:
+    name: Media quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build test image
+        run: docker build --target build -t chatify-media-ci -f apps/media/Dockerfile .
+      - name: Tests
+        run: docker run --rm --entrypoint npm chatify-media-ci test
+      - name: Dependency audit
+        run: docker run --rm --entrypoint npm chatify-media-ci audit --omit=dev --audit-level=high
+
+  web:
+    name: Web build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build web image
+        run: docker build --target build -t chatify-web-ci -f apps/web/Dockerfile .
+      - name: Dependency audit
+        run: docker run --rm --entrypoint npm chatify-web-ci audit --omit=dev --audit-level=high
+
+  compose:
+    name: Compose and browser E2E
+    runs-on: ubuntu-latest
+    needs: [api, signaling, media, web]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose file
+        run: docker compose --project-name chatify-realtime-ci --env-file .env.example -f infra/docker/compose.yaml config -q
+      - name: Start local stack
+        run: docker compose --project-name chatify-realtime-ci --env-file .env.example -f infra/docker/compose.yaml up -d --build
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: harness/package-lock.json
+      - name: Install browser harness
+        run: npm ci --prefix harness
+      - name: Install Chromium
+        run: npx --prefix harness playwright install --with-deps chromium
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
+      - name: Run API/signaling/media smoke tests
+        run: node harness/smoke.cjs && node harness/failure-load.cjs
+
+      - name: Verify Prometheus targets and alert rules
+        run: npm --prefix harness run monitoring
+      - name: Run browser E2E
+        run: npm --prefix harness run browser-e2e
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
+      - name: Collect service logs on failure
+        if: failure()
+        run: docker compose --project-name chatify-realtime-ci --env-file .env.example -f infra/docker/compose.yaml logs --no-color
+      - name: Stop local stack
+        if: always()
+        run: docker compose --project-name chatify-realtime-ci --env-file .env.example -f infra/docker/compose.yaml down -v

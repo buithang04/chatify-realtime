@@ -1,0 +1,101 @@
+groups:
+  - name: chatify-api
+    rules:
+      - alert: ChatifyAPIUnreachable
+        expr: up{job="chatify-api"} == 0
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: Chatify API metrics target is unreachable
+          runbook: docs/OPERATIONS.md#incident-response
+
+  - name: chatify-realtime-services
+    rules:
+      - alert: ChatifySignalingUnreachable
+        expr: up{job="chatify-signaling"} == 0
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: Chatify signaling gateway is unreachable
+          runbook: docs/OPERATIONS.md#realtime-and-media
+
+      - alert: ChatifyMediaWorkerUnreachable
+        expr: up{job="chatify-media"} == 0
+        for: 1m
+        labels:
+          severity: page
+        annotations:
+          summary: Chatify media worker is unreachable
+          runbook: docs/OPERATIONS.md#realtime-and-media
+
+      - alert: ChatifyMediaICEFailures
+        expr: increase(chatify_media_ice_failures_total[5m]) + increase(chatify_media_dtls_failures_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Chatify observed WebRTC ICE or DTLS failures
+          runbook: docs/OPERATIONS.md#realtime-and-media
+
+      - alert: ChatifyReadinessFailures
+        expr: increase(chatify_readiness_failures_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Chatify API readiness checks are failing
+          runbook: docs/OPERATIONS.md#incident-response
+
+      - alert: ChatifyAPI5xxRate
+        expr: |
+          (
+            sum(rate(chatify_http_requests_total{job="chatify-api",status_class="5xx"}[5m]))
+            /
+            clamp_min(sum(rate(chatify_http_requests_total{job="chatify-api"}[5m])), 1)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: Chatify API 5xx rate is above 5 percent
+          runbook: docs/OPERATIONS.md#incident-response
+
+      - alert: ChatifyDatabasePoolExhaustion
+        expr: chatify_db_pool_max_conns > 0 and chatify_db_pool_acquired_conns >= chatify_db_pool_max_conns
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: Chatify API PostgreSQL pool is exhausted
+          runbook: docs/OPERATIONS.md#incident-response
+
+      - alert: ChatifyObjectStorageErrors
+        expr: increase(chatify_object_storage_errors_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Chatify API observed object-storage operation errors
+          runbook: docs/OPERATIONS.md#attachments
+
+  - name: chatify-outbox
+    rules:
+      - alert: ChatifyOutboxUnreachable
+        expr: up{job="chatify-outbox"} == 0
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: Chatify outbox publisher is unreachable
+          runbook: docs/OPERATIONS.md#incident-response
+
+      - alert: ChatifyOutboxBacklogHigh
+        expr: chatify_outbox_pending_events > 100
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Chatify outbox backlog is above 100 events
+          runbook: docs/OPERATIONS.md#incident-response

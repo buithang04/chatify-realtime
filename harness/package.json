@@ -1,0 +1,14 @@
+{
+  "name": "chatify-realtime-harness",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "browser-e2e": "node browser-e2e.cjs",
+    "cross-browser-e2e": "node cross-browser-e2e.cjs",
+	"social-e2e": "node social-e2e.cjs",
+    "monitoring": "node monitoring.cjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.64.1"
+  }
+}
